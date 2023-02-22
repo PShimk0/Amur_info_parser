@@ -12,7 +12,7 @@ class AmurInfoSpider(scrapy.Spider):
     name = "amur_info"
     custom_settings = {
         "ITEM_PIPELINES": {"amur_info.pipelines.AmurInfoCSVPipeline": 300},
-        'LOG_LEVEL': 'INFO'
+        "LOG_LEVEL": "INFO",
     }
 
     def start_requests(self):
@@ -35,10 +35,13 @@ class AmurInfoSpider(scrapy.Spider):
 
     def spider_opened(self, spider):
         self.search_word = "светофор"
-        logging.info(f"Найдем количество упоминаний слова {self.search_word} в заголовках сайта amur.info")
+        logging.info(
+            f"Найдем количество упоминаний слова {self.search_word} в заголовках сайта amur.info"
+        )
         self.all_items = []
 
     def parse(self, response, **kwargs):
+        # Собираем заголовки и ссылки, если в них есть наше слово для поиска
         data = dict()
         header_selector = "//div[@class='long-news-grid']/div/a[@class='h2']"
         for i in response.xpath(header_selector):
@@ -49,6 +52,7 @@ class AmurInfoSpider(scrapy.Spider):
                 data["Ссылка"] = link
                 self.all_items.append(data)
                 yield data
+        # Пагинация организована через нахождение последней страницы и прибавлением к каждой странице единицы, пока мы не достигнем последней страницы
         max_page = int(
             response.xpath(
                 "//div[@class='pagination__pages']/a[@class='pagination__link']/text()"
@@ -63,18 +67,20 @@ class AmurInfoSpider(scrapy.Spider):
                 dont_filter=True,
             )
         else:
-            if len(self.all_items) != 0 or kwargs.get('20_days'):
+            # Останавливаемся если мы нашли ссылки в любом диапазоне, или не нашли ни одной ссылки даже за 20 дневный диапазон
+            if len(self.all_items) != 0 or kwargs.get("20_days"):
                 logging.info(
                     f"Пройдено страниц: {kwargs['page']} , найдено ссылок: {len(self.all_items)}"
                 )
             else:
+                # Расширяем диапазон до 20 дней и переходим сразу на следующую страницу
                 kwargs["page"] += 1
                 current_time = date_string_transform(datetime.today())
                 time_period = date_string_transform(
                     datetime.today() - timedelta(days=20)
                 )
                 url = f"https://amur.info/category/%D0%B2%D1%81%D0%B5-%D0%BD%D0%BE%D0%B2%D0%BE%D1%81%D1%82%D0%B8/?article-category=1627&articles-date={quote_plus(time_period)}+-+{quote_plus(current_time)}"
-                kwargs['20_days'] = True
+                kwargs["20_days"] = True
                 yield scrapy.Request(
                     form_url(kwargs["page"], url),
                     callback=self.parse,
